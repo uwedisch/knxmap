@@ -91,8 +91,8 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                                          self.connection_timeout)
 
     def poll_response_queue(self):
-        """Check if there if there is a KNX message for a
-        target that arrived out-of-band."""
+        """Check if there is a KNX message for a target
+        that arrived out-of-band."""
         if self.response_queue:
             for response in self.response_queue:
                 if isinstance(response, bool):
