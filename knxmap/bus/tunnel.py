@@ -68,8 +68,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         if self.target_futures:
             for k, v in self.target_futures.items():
                 if not v.done():
-                    # Should we try to use True instead False in 2020? No,
-                    # things getting worse!
                     v.set_result(False)
         if self.response_queue:
             for r in self.response_queue:
@@ -81,17 +79,23 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                         cemi_apci_type = r.cemi.apci.apci_type
                 except AttributeError:
                     continue
-        """This code leads to a dead lock after a tunnel connection time out,
-        mutually because of that, that the KNX tunnel is disconnected and the
-        transport is closed, but there are still future items to process."""
-#        if self.tunnel_established:
-#            LOGGER.debug('Disconnect tunnel because of connection time out')
-#            self.knx_tunnel_disconnect()
-#        self.transport.close()
+        """This code leads to a dead lock after a tunnel connection time out
+        with a range of physical addresses to scan, mutually because of that,
+        that the KNX tunnel is disconnected and the transport is closed, but
+        there are still future items to process.
+        
+        But if the router has no possible connections left this code is needed,
+        otherwise we have an another dead lock.  Conclusion is, that state
+        machine on error handling isn't perfect."""
+        if self.tunnel_established:
+            LOGGER.debug('Disconnect tunnel because of connection time out')
+            self.knx_tunnel_disconnect()
+        self.transport.close()
         # TODO: To which value should we set self.future.done to leave the dead
-        # lock?
-#        if not self.future.done():
-#            self.future.set_result(None)
+        # lock after tunnel connection time out?
+        if not self.future.done():
+            LOGGER.debug('Set result of future to None')
+            self.future.set_result(None)
 
     def reset_connection_timeout(self):
         self.wait.cancel()
@@ -356,7 +360,7 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
         elif isinstance(knx_msg, KnxTunnellingAck):
             # TODO: do we have to increase any sequence here?
-            LOGGER.debug('Tunnelling ACK reqceived')
+            LOGGER.debug('Tunnelling ACK received')
             if knx_msg.status:
                 LOGGER.error('An error occured during frame transmission')
         else:
