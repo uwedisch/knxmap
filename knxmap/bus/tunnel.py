@@ -64,10 +64,12 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                                          self.connection_timeout)
 
     def connection_timeout(self):
-        LOGGER.debug('Tunnel connection timed out')
+        LOGGER.error('Tunnel connection timed out')
         if self.target_futures:
             for k, v in self.target_futures.items():
                 if not v.done():
+                    # Should we try to use True instead False in 2020? No,
+                    # things getting worse!
                     v.set_result(False)
         if self.response_queue:
             for r in self.response_queue:
@@ -79,11 +81,17 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                         cemi_apci_type = r.cemi.apci.apci_type
                 except AttributeError:
                     continue
-        if self.tunnel_established:
-            self.knx_tunnel_disconnect()
-        self.transport.close()
-        if not self.future.done():
-            self.future.set_result(None)
+        """This code leads to a dead lock after a tunnel connection time out,
+        mutually because of that, that the KNX tunnel is disconnected and the
+        transport is closed, but there are still future items to process."""
+#        if self.tunnel_established:
+#            LOGGER.debug('Disconnect tunnel because of connection time out')
+#            self.knx_tunnel_disconnect()
+#        self.transport.close()
+        # TODO: To which value should we set self.future.done to leave the dead
+        # lock?
+#        if not self.future.done():
+#            self.future.set_result(None)
 
     def reset_connection_timeout(self):
         self.wait.cancel()
@@ -175,8 +183,9 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                     self.knx_source_address = knx_msg.data_block.get('knx_address')
                 self.future.set_result(True)
             else:
-                #LOGGER.error('Establishing tunnel connection failed: %s' %
-                #             knx_msg.ERROR)
+                # In 2020 we should see some more connection results...
+                LOGGER.error('Establishing tunnel connection failed: %s' %
+                             knx_msg.ERROR)
                 self.transport.close()
                 raise KnxTunnelException(knx_msg.ERROR)
                 #self.future.set_result(None)
@@ -219,7 +228,7 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
             # TODO: is there anything to do with an ACK?
             pass
         else:
-            LOGGER.error('Unknown Configuration Servuce message: {}'.format(
+            LOGGER.error('Unknown Configuration Service message: {}'.format(
                 knx_msg.header.get('service_type')))
 
     def handle_tunnel_services(self, knx_msg):
