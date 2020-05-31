@@ -1,5 +1,5 @@
 """This module contains various helper classes that make handling targets and sets
-of targets and results easiert."""
+of targets and results easier."""
 import binascii
 import collections
 import ipaddress
