@@ -60,8 +60,11 @@ class KnxTargets(object):
         self.targets = set()
         if not targets:
             self.targets = None
-        elif '-' not in targets and self.is_valid_physical_address(targets):
-            self.targets.add(targets)
+        elif '-' not in targets:
+            if not self.is_valid_physical_address(targets):
+                LOGGER.error('Invalid physical address')
+            else:
+                self.targets.add(targets)
         else:
             assert isinstance(targets, str)
             if '-' in targets and targets.count('-') < 2:
@@ -70,9 +73,10 @@ class KnxTargets(object):
                     f, t = targets.split('-')
                 except ValueError:
                     return
-                if not self.is_valid_physical_address(f) or \
-                        not self.is_valid_physical_address(t):
-                    LOGGER.error('Invalid physical address')
+                if not self.is_valid_physical_address(f):
+                    LOGGER.error('Invalid physical address From')
+                if not self.is_valid_physical_address(t):
+                    LOGGER.error('Invalid physical address To')
                     # TODO: make it group address aware
                 elif self.physical_address_to_int(t) <= \
                         self.physical_address_to_int(f):
@@ -114,14 +118,19 @@ class KnxTargets(object):
             return False
         if len(parts) != 3:
             return False
-        if (parts[0] < 1 or parts[0] > 15) or (parts[1] < 0 or parts[1] > 15):
+        if parts[0] < 0 or parts[0] > 15:
+            return False
+        if parts[1] < 0 or parts[1] > 15:
             return False
         if parts[2] < 0 or parts[2] > 255:
+            return False
+        if parts[0] == 0 and parts[1] == 0 and parts[2] == 0:
             return False
         return True
 
     @staticmethod
     def is_valid_group_address(address):
+        """ See <https://support.knx.org/hc/de/articles/115003188109-Gruppenadressen>. """
         assert isinstance(address, str)
         try:
             parts = [int(i) for i in address.split('/')]
@@ -129,10 +138,21 @@ class KnxTargets(object):
             return False
         if len(parts) < 2 or len(parts) > 3:
             return False
-        if (parts[0] < 0 or parts[0] > 15) or (parts[1] < 0 or parts[1] > 15):
-            return False
         if len(parts) == 3:
+            if parts[0] < 0 or parts[0] > 31:
+                return False
+            if parts[1] < 0 or parts[1] > 7:
+                return False
             if parts[2] < 0 or parts[2] > 255:
+                return False
+            if parts[0] == 0 and parts[1] == 0 and parts[2] == 0:
+                return False
+        if len(parts) == 2:
+            if parts[0] < 0 or parts[0] > 31:
+                return False
+            if parts[1] < 0 or parts[1] > 2047:
+                return False
+            if parts[0] == 0 and parts[1] == 0:
                 return False
         return True
 
