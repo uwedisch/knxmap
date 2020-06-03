@@ -1,6 +1,7 @@
 import json
 import socket
 import collections
+import logging
 
 def parse_knx_address(address):
     """Parse physical/individual KNX address.
