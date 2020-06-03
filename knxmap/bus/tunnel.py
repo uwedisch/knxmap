@@ -166,6 +166,7 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         knx_msg.set_peer(addr)
         LOGGER.trace_incoming(knx_msg)
         knx_service_type = knx_msg.header.get('service_type') >> 8
+        LOGGER.debug('KNX Service Type: {}'.format(knx_service_type))
         if knx_service_type == 0x02:  # Core
             self.handle_core_services(knx_msg)
         elif knx_service_type == 0x03:  # Device Management
@@ -197,8 +198,10 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
             # After receiving a CONNECTIONSTATE_RESPONSE schedule the next one
             self.loop.call_later(50, self.knx_keep_alive)
         elif isinstance(knx_msg, KnxDisconnectRequest):
+            LOGGER.debug('knxmap.bus.tunnel.handle_core_services(): KnxDisconnectRequest')
             disconnect_response = KnxDisconnectResponse(
                 communication_channel=self.communication_channel)
+            # TODO: The KnxDisconnectResponse is not seen on the wire.
             self.transport.sendto(disconnect_response.get_message())
             self.transport.close()
             if not self.future.done():
@@ -210,6 +213,7 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         else:
             LOGGER.error('Unknown Core Service message: {}'.format(
                 knx_msg.header.get('service_type')))
+        LOGGER.debug('Leaving handle_core_services()')
 
     def handle_configuration_services(self, knx_msg):
         if isinstance(knx_msg, KnxDeviceConfigurationRequest):
