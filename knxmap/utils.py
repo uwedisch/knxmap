@@ -3,6 +3,8 @@ import socket
 import collections
 import logging
 
+LOGGER = logging.getLogger(__name__)
+
 def parse_knx_address(address):
     """Parse physical/individual KNX address.
 
