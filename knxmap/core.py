@@ -353,13 +353,18 @@ class KnxMap(object):
 
                 alive = yield from protocol.tpci_connect(target)
 
-                if alive:
+                if not alive:
+                    LOGGER.debug('KNX tunnel to target {} is NOT alive!'.format(target))
+                else:
+                    LOGGER.debug('KNX tunnel to target {} is alive!'.format(target))
                     properties = collections.OrderedDict()
                     serial = None
 
                     # DeviceDescriptorRead
                     descriptor = yield from protocol.apci_device_descriptor_read(target)
+                    LOGGER.debug('Returning from apci_device_descriptor_read()')
                     if not descriptor:
+                        LOGGER.debug('Reading APCI device descriptor of target {}'.format(target))
                         tunnel_request = protocol.make_tunnel_request(target)
                         tunnel_request.tpci_unnumbered_control_data('DISCONNECT')
                         protocol.send_data(tunnel_request.get_message(), target)
@@ -367,6 +372,7 @@ class KnxMap(object):
                         continue
 
                     if not self.bus_info:
+                        LOGGER.debug('Reading bus info of target {}'.format(target))
                         t = KnxBusTargetReport(address=target)
                         self.bus_devices.add(t)
                         tunnel_request = protocol.make_tunnel_request(target)
@@ -376,9 +382,13 @@ class KnxMap(object):
                         continue
 
                     dev_desc = struct.unpack('!H', descriptor)[0]
+                    LOGGER.debug('Going to parse device_descriptor data')
+                    # TODO: The call to knxmap.utils.parse_device_descriptor()
+                    # is done, but never reached within the function itself!
                     desc_medium, desc_type, desc_version = knxmap.utils.parse_device_descriptor(dev_desc)
                     device_state = None
 
+                    LOGGER.debug('Proceeding on target {}'.format(target))
                     if desc_type > 1:
                         # Read System 2 and System 7 manufacturer ID object
                         manufacturer = yield from protocol.apci_property_value_read(
