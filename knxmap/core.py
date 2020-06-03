@@ -383,8 +383,6 @@ class KnxMap(object):
 
                     dev_desc = struct.unpack('!H', descriptor)[0]
                     LOGGER.debug('Going to parse device_descriptor data')
-                    # TODO: The call to knxmap.utils.parse_device_descriptor()
-                    # is done, but never reached within the function itself!
                     desc_medium, desc_type, desc_version = knxmap.utils.parse_device_descriptor(dev_desc)
                     device_state = None
 

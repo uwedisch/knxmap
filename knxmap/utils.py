@@ -79,13 +79,13 @@ def parse_device_descriptor(desc):
     parse_device_descriptor(1793)
     (0, 112, 1)
     """
-    # TODO: When called from _knx_bus_worker() this point is never reached!
     LOGGER.debug('Entering knxmap.utils.parse_device_descriptor()')
     assert isinstance(desc, int), 'Device descriptor is not an integer, got %s instead' % type(desc)
     desc = format(desc, '04x')
     medium = int(desc[0])
     dev_type = int(desc[1:-1], 16)
     version = int(desc[-1])
+    # TODO: When called from _knx_bus_worker() this point is never reached!
     LOGGER.debug('Going to leave knxmap.utils.parse_device_descriptor()')
     return medium, dev_type, version
 
