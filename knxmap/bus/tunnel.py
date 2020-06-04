@@ -191,12 +191,9 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
             # After receiving a CONNECTIONSTATE_RESPONSE schedule the next one
             self.loop.call_later(50, self.knx_keep_alive)
         elif isinstance(knx_msg, KnxDisconnectRequest):
-            # Some KNX target devices, also sometimes if the KNXnet/IP gateway
-            # itself is the target device, are resulting in receiving a
+            # Some KNX target devices are resulting in receiving a
             # KnxDisconnectResponse message from the KNXnet/IP (Tunneling)
-            # gateway.  This seems to be a bug in the gateway because we have
-            # seen gateways that are handling these requests without
-            # disconnecting the tunnel.  Therefore log it as error.
+            # gateway.  See knmap.core._knx_bus_worker() for the cause.
             LOGGER.error('Received unexpected tunnel disconnect request')
             disconnect_response = KnxDisconnectResponse(
                 communication_channel=self.communication_channel)
