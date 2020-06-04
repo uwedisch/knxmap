@@ -65,11 +65,10 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
     def connection_timeout(self):
         # TODO: In the case of the seen dead lock we have not received a KNX
-        # tunneling ACK because we sent a tunneling ACK by ourself because we
-        # missed to send our tunneling request before and the KNXnet/IP gateway
-        # sent that tunneling request on it's own behalf.  So log the time out
-        # as error!
-        LOGGER.error('Tunnel connection timed out')
+        # tunneling ACK because we sent a tunneling ACK by ourself.  This was
+        # because we missed to send our tunneling request before and the
+        # gateway sent that tunneling request on it's own behalf.
+        LOGGER.info('Tunnel connection timed out')
         if self.target_futures:
             for k, v in self.target_futures.items():
                 if not v.done():
