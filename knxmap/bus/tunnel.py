@@ -198,10 +198,11 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
             # After receiving a CONNECTIONSTATE_RESPONSE schedule the next one
             self.loop.call_later(50, self.knx_keep_alive)
         elif isinstance(knx_msg, KnxDisconnectRequest):
-            LOGGER.debug('knxmap.bus.tunnel.handle_core_services(): KnxDisconnectRequest')
+            LOGGER.error('Received unexpected tunnel disconnect request')
             disconnect_response = KnxDisconnectResponse(
                 communication_channel=self.communication_channel)
-            # TODO: The KnxDisconnectResponse is not seen on the wire.
+            # TODO: The KnxDisconnectResponse is not seen on the wire for what
+            # ever reason.
             self.transport.sendto(disconnect_response.get_message())
             self.transport.close()
             if not self.future.done():
