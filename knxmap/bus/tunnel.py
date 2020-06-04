@@ -160,7 +160,7 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         knx_service_type = knx_msg.header.get('service_type') >> 8
         # TODO: In case of debugging it's always good to see which service
         # type was received.
-        LOGGER.debug('KNX Service Type: {}'.format(knx_service_type))
+        LOGGER.debug('KNX service type: {}'.format(knx_service_type))
         if knx_service_type == 0x02:  # Core
             self.handle_core_services(knx_msg)
         elif knx_service_type == 0x03:  # Device Management
@@ -200,10 +200,7 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
             LOGGER.error('Received unexpected tunnel disconnect request')
             disconnect_response = KnxDisconnectResponse(
                 communication_channel=self.communication_channel)
-            # TODO: The KnxDisconnectResponse is not seen on the wire for what-
-            # ever reason.
-            # TODO: If the KnxDisconnectResponse is seen on the wire we must
-            # check if the connection is re-established
+            LOGGER.trace_outgoing(disconnect_response.get_message())
             self.transport.sendto(disconnect_response.get_message())
             self.transport.close()
             if not self.future.done():
@@ -215,9 +212,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         else:
             LOGGER.error('Unknown Core Service message: {}'.format(
                 knx_msg.header.get('service_type')))
-        # TODO: Debugging the case of the KnxDisconnectResponse that isn't seen
-        # on the wire.
-        LOGGER.debug('Leaving handle_core_services()')
 
     def handle_configuration_services(self, knx_msg):
         if isinstance(knx_msg, KnxDeviceConfigurationRequest):

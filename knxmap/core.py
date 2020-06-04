@@ -408,8 +408,17 @@ class KnxMap(object):
                         if isinstance(serial, (str, bytes, bytearray)):
                             serial = codecs.encode(serial, 'hex').decode().upper()
 
+                        # Read further properties on System 2 and System 7
+                        # devices
                         for object_index, props in OBJECTS.items():
                             x = collections.OrderedDict()
+                            # TODO: The next loop never finishes.  While
+                            # reading with "k: PID_ENROL" and "v: 24" the
+                            # unexpected tunnel disconnect request from gateway
+                            # is received.  If connection is closed after a
+                            # disconnect request we have to call the function
+                            # queue.task_done() and return from
+                            # _knx_bus_worker().
                             for k, v in props.items():
                                 ret = yield from protocol.apci_property_value_read(
                                     target,
