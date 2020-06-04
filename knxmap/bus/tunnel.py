@@ -193,7 +193,7 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         elif isinstance(knx_msg, KnxDisconnectRequest):
             # Some KNX target devices are resulting in receiving a
             # KnxDisconnectResponse message from the KNXnet/IP (Tunneling)
-            # gateway.  See knmap.core._knx_bus_worker() for the cause.
+            # gateway.  See knxmap.core._knx_bus_worker() for the cause.
             LOGGER.error('Received unexpected tunnel disconnect request')
             disconnect_response = KnxDisconnectResponse(
                 communication_channel=self.communication_channel)
