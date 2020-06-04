@@ -64,16 +64,12 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                                          self.connection_timeout)
 
     def connection_timeout(self):
+        # TODO: In the case of the seen dead lock we have not received a KNX
+        # tunneling ACK because we sent a tunneling ACK by ourself because we
+        # missed to send our tunneling request before and the KNXnet/IP gateway
+        # sent that tunneling request on it's own behalf.  So log the time out
+        # as error!
         LOGGER.error('Tunnel connection timed out')
-        # TODO: In the case of the dead lock we have not received a tunneling
-        # ACK because we sent a tunneling ACK by ourself.  In this specific
-        # case we have put the sent ACK into our receiving queue to emulate a
-        # received ACK (see datagram_received()).
-#        if self.tunnel_established:
-            # TODO: Check if we have sent an KnxTunnellingAck by ourself.
-#            LOGGER.debug('How to drive communication?')
-#        else:
-        # TODO: Possibly we can remove all the stuff above!
         if self.target_futures:
             for k, v in self.target_futures.items():
                 if not v.done():
@@ -89,18 +85,15 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                 except AttributeError:
                     continue
         if self.tunnel_established:
-            LOGGER.debug('Disconnect tunnel because of connection time out')
             self.knx_tunnel_disconnect()
         self.transport.close()
         if not self.future.done():
-            LOGGER.debug('Set result of future to None')
             self.future.set_result(None)
 
     def reset_connection_timeout(self):
         self.wait.cancel()
         self.wait = self.loop.call_later(self.tunnel_timeout,
                                          self.connection_timeout)
-        LOGGER.debug('Waiting for connection timeout')
 
     def poll_response_queue(self):
         """Check if there is a KNX message for a target
@@ -166,6 +159,8 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         knx_msg.set_peer(addr)
         LOGGER.trace_incoming(knx_msg)
         knx_service_type = knx_msg.header.get('service_type') >> 8
+        # TODO: In case of debugging it's always good to see which service
+        # type was received.
         LOGGER.debug('KNX Service Type: {}'.format(knx_service_type))
         if knx_service_type == 0x02:  # Core
             self.handle_core_services(knx_msg)
@@ -188,7 +183,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                     self.knx_source_address = knx_msg.data_block.get('knx_address')
                 self.future.set_result(True)
             else:
-                # In 2020 we should see some more connection results...
                 LOGGER.error('Establishing tunnel connection failed: %s' %
                              knx_msg.ERROR)
                 self.transport.close()
@@ -198,10 +192,14 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
             # After receiving a CONNECTIONSTATE_RESPONSE schedule the next one
             self.loop.call_later(50, self.knx_keep_alive)
         elif isinstance(knx_msg, KnxDisconnectRequest):
+            # Some KNX target devices are resulting in receiving a
+            # KnxDisconnectResponse message from the KNXnet/IP (Tunneling)
+            # gateway.  This seems to be a bug in the KNXnet/IP (Tunneling)
+            # gateway and therefore log it as error.
             LOGGER.error('Received unexpected tunnel disconnect request')
             disconnect_response = KnxDisconnectResponse(
                 communication_channel=self.communication_channel)
-            # TODO: The KnxDisconnectResponse is not seen on the wire for what
+            # TODO: The KnxDisconnectResponse is not seen on the wire for what-
             # ever reason.
             self.transport.sendto(disconnect_response.get_message())
             self.transport.close()
@@ -214,6 +212,8 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         else:
             LOGGER.error('Unknown Core Service message: {}'.format(
                 knx_msg.header.get('service_type')))
+        # TODO: Debugging the case of the KnxDisconnectResponse that isn't seen
+        # on the wire.
         LOGGER.debug('Leaving handle_core_services()')
 
     def handle_configuration_services(self, knx_msg):
@@ -389,26 +389,18 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         return f
 
     def tpci_connect(self, target):
-        LOGGER.debug('Entering tpci_connect()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.tpci_unnumbered_control_data('CONNECT')
         LOGGER.trace_outgoing(tunnel_request)
-        # TODO: Is this fixing the dead lock?  Not really.  Is throwing an
-        # exception.  So we need another time out and a function to re-initiate
-        # the connection.  But this time out is only firing if we aren't using
-        # the --bus-info switch.  But, possibly this stuff isn't needed.
-        #self.reset_connection_timeout()
         return self.send_data(tunnel_request.get_message(), target)
 
     def tpci_disconnect(self, target):
-        LOGGER.debug('Entering tpci_disconnect()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.tpci_unnumbered_control_data('DISCONNECT')
         LOGGER.trace_outgoing(tunnel_request)
         return self.send_data(tunnel_request.get_message(), target)
 
     def tpci_send_ncd(self, target):
-        LOGGER.debug('Entering tpci_send_ncd()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.tpci_numbered_control_data('ACK', sequence=self.tpci_seq_counts.get(target))
         # increment TPCI sequence counter
@@ -464,7 +456,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         self.transport.sendto(disconnect_request.get_message())
 
     def knx_tpci_disconnect(self, target):
-        LOGGER.debug('Entering knx_tpci_disconnect()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.tpci_unnumbered_control_data('DISCONNECT')
         LOGGER.trace_outgoing(tunnel_request)
@@ -488,7 +479,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
     @asyncio.coroutine
     def apci_device_descriptor_read(self, target):
-        LOGGER.debug('Entering apci_device_descriptor_read()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_device_descriptor_read(
             sequence=self.tpci_seq_counts.get(target))
@@ -502,12 +492,10 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
                 return value.cemi.data
         else:
             return False
-        LOGGER.debug('Leaving apci_device_descriptor_read()')
 
     @asyncio.coroutine
     def apci_property_value_read(self, target, object_index=0, property_id=0x0f,
                                  num_elements=1, start_index=1):
-        LOGGER.debug('Entering apci_property_value_read()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_property_value_read(
             sequence=self.tpci_seq_counts.get(target),
@@ -527,7 +515,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
     @asyncio.coroutine
     def apci_property_description_read(self, target, object_index=0, property_id=0x0f,
                                        num_elements=1, start_index=1):
-        LOGGER.debug('Entering apci_property_description_read()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_property_description_read(
             sequence=self.tpci_seq_counts.get(target),
@@ -546,7 +533,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
     @asyncio.coroutine
     def apci_memory_read(self, target, memory_address=0x0060, read_count=1):
-        LOGGER.debug('Entering apci_memory_read()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_memory_read(
             sequence=self.tpci_seq_counts.get(target),
@@ -581,7 +567,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
     @asyncio.coroutine
     def apci_memory_write(self, target, memory_address=0x0060, write_count=1,
                           data=b'\x00'):
-        LOGGER.debug('Entering apci_memory_write()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_memory_write(
             sequence=self.tpci_seq_counts.get(target),
@@ -599,7 +584,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
     @asyncio.coroutine
     def apci_key_write(self, target, level, key):
-        LOGGER.debug('Entering apci_key_write()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_key_write(
             sequence=self.tpci_seq_counts.get(target),
@@ -619,7 +603,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
         """Send an A_Authorize_Request to target with the
         supplied key. Returns the access level as an int
         or False if an error occurred."""
-        LOGGER.debug('Entering apci_authenticate()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_authorize_request(
             sequence=self.tpci_seq_counts.get(target),
@@ -634,7 +617,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
     @asyncio.coroutine
     def apci_group_value_write(self, target, value=0):
-        LOGGER.debug('Entering apci_group_value_write()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_group_value_write(value=value)
         LOGGER.trace_outgoing(tunnel_request)
@@ -647,7 +629,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
     @asyncio.coroutine
     def apci_individual_address_read(self, target):
-        LOGGER.debug('Entering apci_individual_address_read()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_individual_address_read(
             sequence=self.tpci_seq_counts.get(target))
@@ -662,7 +643,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
     @asyncio.coroutine
     def apci_user_manufacturer_info_read(self, target):
-        LOGGER.debug('Entering apci_user_manufacturer_info_read()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_user_manufacturer_info_read(
             sequence=self.tpci_seq_counts.get(target))
@@ -677,7 +657,6 @@ class KnxTunnelConnection(asyncio.DatagramProtocol):
 
     @asyncio.coroutine
     def apci_restart(self, target):
-        LOGGER.debug('Entering apci_restart()')
         tunnel_request = self.make_tunnel_request(target)
         tunnel_request.apci_restart(
             sequence=self.tpci_seq_counts.get(target))
